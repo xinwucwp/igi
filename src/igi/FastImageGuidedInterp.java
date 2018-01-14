@@ -107,9 +107,10 @@ public class FastImageGuidedInterp {
   }
 
   /**
-   * Apply for 2D image-guided interpolation.
+   * Apply for 2D image-guided and weighted interpolation.
    * @param s1 sampling in the 1st (vertical) dimension.
    * @param s2 sampling in the 2nd (lateral) dimension.
+   * @param wp weights, low values near faults, high values elsewhere.
    * @return array of the interpolated image.
    */
   public float[][] grid(Sampling s1, Sampling s2, float[][] wp) {
