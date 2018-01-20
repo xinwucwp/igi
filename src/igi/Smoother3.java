@@ -1,157 +1,90 @@
 package igi;
 
-import edu.mines.jtk.util.Parallel;
-import edu.mines.jtk.dsp.LocalSmoothingFilter;
-import edu.mines.jtk.dsp.RecursiveExponentialFilter;
-import static edu.mines.jtk.util.ArrayMath.*;
+import edu.mines.jtk.dsp.*;
+
 /**
  * 3D symmetric positive definite smoothing operator 
  * for preconditioning in a CG solver.
  * @author Xinming Wu
- * @version 2015.06.06
+ * @version 2018.01.19
  */
 
 public class Smoother3 {
 
-  public Smoother3(float sigma1, float sigma2, float sigma3, float[][][] wp) {
-    _wp = copy(wp);
-    _sigma1 = sigma1;
-    _sigma2 = sigma2;
-    _sigma3 = sigma3;
+   /**
+   * Constructs a 3D smoother.
+   * @param sigma smooth half-width.
+   * @param wp spatially varying map to stop smoothing near discontinuities.
+   * @param et 2d eigentensor field.
+   */
+  public Smoother3(float sigma, float[][][] wp, EigenTensors3 et) {
+    _wp = wp;
+    _et = et;
+    _sigma = sigma;
+    _scale = 0.5f*sigma*sigma;
+    _ref = new RecursiveExponentialFilter(sigma);
+    _ref.setEdges(_edges);
   }
 
+  /**
+   * Smoothing preconditioner for the CG solver.
+   * As a preconditioner, the smoothing operator 
+   * needs to be symmetric positive definite.
+   * @param x input and output after smoothing.
+   */
   public void apply(float[][][] x) {
-    smooth1(_sigma1,_wp,x);
-    smooth2(_sigma2,_wp,x);
-    smooth3(_sigma3,_wp,x);
-    smooth3(_sigma3,_wp,x);
-    smooth2(_sigma2,_wp,x);
-    smooth1(_sigma1,_wp,x);
-  }
-
-  public void applyOriginal(float[][][][] x) {
-    int n4 = x.length;
-    for (int i4=0; i4<n4; ++i4)
-      applyOriginal(x[i4]);
-  }
-
-  public void applyOriginal(float[][][] x) {
-    smooth1(_sigma1,x);
-    smooth2(_sigma2,_wp,x); 
-    smooth3(_sigma3,_wp,x);
-  }
-
-
-  public void applyTranspose(float[][][][] x) {
-    int n4 = x.length;
-    for (int i4=0; i4<n4; ++i4) {
-      smooth3(_sigma3,_wp,x[i4]);
-      smooth2(_sigma2,_wp,x[i4]); 
-      smooth1(_sigma1,x[i4]);
+    int n3 = x.length;
+    int n2 = x[0].length;
+    int n1 = x[0][0].length;
+    float[][][] y = new float[n3][n2][n1];
+    if (_et==null&&_wp==null) {
+      applyRefSmooth(_sigma,x); //isotropic smoothing, very fast
+    } else if(_et==null&&_wp!=null) {
+      _lsf.applySmoothS(x,y);
+      _lsf.apply(_scale,_wp,y,x); //isotropic & spatially variant smoothing
+    } else if(_et!=null&&_wp==null) {
+      _lsf.applySmoothS(x,y);
+      _lsf.apply(_et,_scale,y,x); //anisotropic smoothing
+    } else if(_et!=null&&_wp!=null) {
+      _lsf.applySmoothS(x,y);
+      _lsf.apply(_et,_scale,_wp,y,x); //anisotropic & spatially variant smoothing
     }
   }
 
   ///////////////////////////////////////////////////////////////////////////
   // private
-  private float[][][] _wp;
+  private float _scale;
+  private float _sigma;
+  private float[][][] _wp = null;
+  private EigenTensors3 _et = null;
+  private LocalSmoothingFilter _lsf = new LocalSmoothingFilter();
+  private RecursiveExponentialFilter _ref; 
+  RecursiveExponentialFilter.Edges _edges =
+      RecursiveExponentialFilter.Edges.OUTPUT_ZERO_SLOPE;
 
-  private float _sigma1,_sigma2,_sigma3;
-
-  // Smoothing for dimension 1.
-  private static void smooth1(float sigma, float[][] s, float[][] x) {
-    if (sigma<1.0f)
-      return;
-    int n2 = x.length;
-    int n1 = x[0].length;
-    float c = 0.5f*sigma*sigma;
-    float[] st = fillfloat(1.0f,n1);
-    float[] xt = zerofloat(n1);
-    float[] yt = zerofloat(n1);
-    LocalSmoothingFilter lsf = new LocalSmoothingFilter();
-    for (int i2=0; i2<n2; ++i2) {
-      if (s!=null) {
-        for (int i1=0; i1<n1; ++i1)
-          st[i1] = s[i2][i1];
-      }
-      for (int i1=0; i1<n1; ++i1)
-        xt[i1] = x[i2][i1];
-      lsf.apply(c,st,xt,yt);
-      for (int i1=0; i1<n1; ++i1)
-        x[i2][i1] = yt[i1];
-    }
+  //construct a symmetric positive definite smoothing operator 
+  //with highly efficient recursive exponential filters
+  private void applyRefSmooth(float sigma, float[][][] x) {
+    smooth1(sigma,x);
+    smooth2(sigma,x);
+    smooth3(sigma,x);
+    smooth3(sigma,x);
+    smooth2(sigma,x);
+    smooth1(sigma,x);
   }
-
-  private static void smooth1(
-    final float sigma, final float[][][] s, final float[][][] x) 
-  {
-    final int n3 = x.length;
-    Parallel.loop(n3, new Parallel.LoopInt() {
-    public void compute(int i3) {
-      float[][] x3 = x[i3];
-      float[][] s3 = (s!=null)?s[i3]:null;
-      smooth1(sigma,s3,x3);
-    }});
-  }
-
-  // Smoothing for dimension 2.
-  private static void smooth2(float sigma, float[][] s, float[][] x) {
-    if (sigma<1.0f)
-      return;
-    float c = 0.5f*sigma*sigma;
-    int n1 = x[0].length;
-    int n2 = x.length;
-    float[] st = fillfloat(1.0f,n2);
-    float[] xt = zerofloat(n2);
-    float[] yt = zerofloat(n2);
-    LocalSmoothingFilter lsf = new LocalSmoothingFilter();
-    for (int i1=0; i1<n1; ++i1) {
-      if (s!=null) {
-        for (int i2=0; i2<n2; ++i2)
-          st[i2] = s[i2][i1];
-      }
-      for (int i2=0; i2<n2; ++i2)
-        xt[i2] = x[i2][i1];
-      lsf.apply(c,st,xt,yt);
-      for (int i2=0; i2<n2; ++i2)
-        x[i2][i1] = yt[i2];
-    }
-  }
-  private static void smooth2(
-    final float sigma, final float[][][] s, final float[][][] x) 
-  {
-    final int n3 = x.length;
-    Parallel.loop(n3,new Parallel.LoopInt() {
-    public void compute(int i3) {
-      float[][] s3 = (s!=null)?s[i3]:null;
-      float[][] x3 = x[i3];
-      smooth2(sigma,s3,x3);
-    }});
-  }
-
-  // Smoothing for dimension 3.
-  private static void smooth3(
-    final float sigma, final float[][][] s, final float[][][] x) 
-  {
-    final int n2 = x[0].length;
-    final int n3 = x.length;
-    Parallel.loop(n2,new Parallel.LoopInt() {
-    public void compute(int i2) {
-      float[][] s2 = (s!=null)?new float[n3][]:null;
-      float[][] x2 = new float[n3][];
-      for (int i3=0; i3<n3; ++i3) {
-        if (s!=null)
-          s2[i3] = s[i3][i2];
-        x2[i3] = x[i3][i2];
-      }
-      smooth2(sigma,s2,x2);
-    }});
-  }
-
-
 
   // Smoothing for dimension 1.
   private void smooth1(float sigma, float[][][] x) {
-    new RecursiveExponentialFilter(sigma).apply1(x,x);
+    _ref.apply1(x,x);
+  }
+  // Smoothing for dimension 2.
+  private void smooth2(float sigma, float[][][] x) {
+    _ref.apply2(x,x);
+  }
+  // Smoothing for dimension 3.
+  private void smooth3(float sigma, float[][][] x) {
+    _ref.apply3(x,x);
   }
 
 }
+

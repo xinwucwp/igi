@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="build/libs/igi.jar"/>
+	<classpathentry kind="lib" path="libs/gluegen-rt-natives-linux-amd64.jar"/>
+	<classpathentry kind="lib" path="libs/gluegen-rt-natives-macosx-universal.jar"/>
+	<classpathentry kind="lib" path="libs/gluegen-rt-natives-windows-amd64.jar"/>
+	<classpathentry kind="lib" path="libs/gluegen-rt.jar"/>
+	<classpathentry kind="lib" path="libs/jogl-all-natives-linux-amd64.jar"/>
+	<classpathentry kind="lib" path="libs/jogl-all-natives-macosx-universal.jar"/>
+	<classpathentry kind="lib" path="libs/jogl-all-natives-windows-amd64.jar"/>
+	<classpathentry kind="lib" path="libs/jogl-all-noawt-natives-macosx-universal.jar"/>
+	<classpathentry kind="lib" path="libs/jogl-all.jar"/>
+	<classpathentry kind="lib" path="libs/jythonlib.jar"/>
+	<classpathentry kind="lib" path="/jtk/core/build/libs/edu-mines-jtk-1.0.0.jar"/>
+	<classpathentry kind="output" path="build/classes"/>
+</classpath>

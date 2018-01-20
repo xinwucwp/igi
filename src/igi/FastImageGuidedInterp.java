@@ -2,6 +2,7 @@ package igi;
 
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.util.*;
+import edu.mines.jtk.interp.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 /**
@@ -44,28 +45,38 @@ public class FastImageGuidedInterp {
   }
 
   /**
-   * Set smoothing for preconditioning in a CG solver.
-   * @param sigma1 smoother half-width for 1st dimension.
-   * @param sigma2 smoother half-width for 2nd dimension.
+   * Set balance parameter for the biharmonic/bilaplacian term.
+   * use larger alpha for isotropic interpolation but 
+   * smaller alpha for anisotropic interpolation.
+   * @param alpha balance parameter.
    */
-  public void setSmoothings(double sigma1, double sigma2) {
-    _sigma1 = (float)sigma1;
-    _sigma2 = (float)sigma2;
+  public void setBiharmonic(float alpha) {
+    _alpha = alpha;
+  }
+
+  /**
+   * Set smoothing for preconditioning in a CG solver.
+   * @param sigma smoother half-width.
+   */
+  public void setSmoothings(double sigma) {
+    _sigma = (float)sigma;
   }
 
   /**
    * Set iterations for a CG solver.
    * @param niter number of the maximum iterations.
+   * @param small stop iterations when error norm is reduced by this fraction.
    */
-  public void setIters(int niter) {
+  public void setIters(int niter, float small) {
     _niter =  niter;
+    _small = small;
   }
 
   /**
    * Set 2D structure tensors for 2D image-guided interpolation.
    * @param d2 2D structure tensor field.
    */
-  public void setTensors(Tensors2 d2) {
+  public void setTensors(EigenTensors2 d2) {
     _d2 = d2;
   }
 
@@ -73,7 +84,7 @@ public class FastImageGuidedInterp {
    * Set 3D structure tensors for 3D image-guided interpolation.
    * @param d3 3D structure tensor field.
    */
-  public void setTensors(Tensors3 d3) {
+  public void setTensors(EigenTensors3 d3) {
     _d3 = d3;
   }
 
@@ -86,7 +97,8 @@ public class FastImageGuidedInterp {
   public float[][] grid(Sampling s1, Sampling s2) {
     int n1 = s1.getCount();
     int n2 = s2.getCount();
-    float[][] r = new float[n2][n1];
+    //float[][] r = applyForInitial(s1,s2);
+    float[][] r = fillfloat(0f,n1,n2);
     float[][] wp = fillfloat(1f,n1,n2);
     int np = _x1.length;
     for (int ip=0; ip<np; ++ip) {
@@ -97,9 +109,9 @@ public class FastImageGuidedInterp {
     setInitial(r);
     VecArrayFloat2 vb = new VecArrayFloat2(b);
     VecArrayFloat2 vr = new VecArrayFloat2(r);
-    Smoother2 sm2 = new Smoother2(_sigma1,_sigma2,wp);
+    Smoother2 sm2 = new Smoother2(_sigma,null,_d2);
     CgSolver cg = new CgSolver(_small,_niter);
-    A2 a2 = new A2(_d2,wp);
+    A2 a2 = new A2(_alpha,_d2,wp);
     M2 m2 = new M2(_x1,_x2,sm2);
     vb.zero();
     cg.solve(a2,m2,vb,vr);
@@ -116,7 +128,7 @@ public class FastImageGuidedInterp {
   public float[][] grid(Sampling s1, Sampling s2, float[][] wp) {
     int n1 = s1.getCount();
     int n2 = s2.getCount();
-    float[][] r = new float[n2][n1];
+    float[][] r = applyForInitial(s1,s2);
     int np = _x1.length;
     for (int ip=0; ip<np; ++ip) {
       _x1[ip] = (float)s1.indexOfNearest(_x1[ip]);
@@ -126,15 +138,14 @@ public class FastImageGuidedInterp {
     setInitial(r);
     VecArrayFloat2 vb = new VecArrayFloat2(b);
     VecArrayFloat2 vr = new VecArrayFloat2(r);
-    Smoother2 sm2 = new Smoother2(_sigma1,_sigma2,null);
+    Smoother2 sm2 = new Smoother2(_sigma,wp,_d2);
     CgSolver cg = new CgSolver(_small,_niter);
-    A2 a2 = new A2(_d2,wp);
+    A2 a2 = new A2(_alpha,_d2,wp);
     M2 m2 = new M2(_x1,_x2,sm2);
     vb.zero();
     cg.solve(a2,m2,vb,vr);
     return r;
   }
-
 
   /**
    * Apply for 3D image-guided interpolation.
@@ -152,7 +163,7 @@ public class FastImageGuidedInterp {
     setInitial(r);
     VecArrayFloat3 vr = new VecArrayFloat3(r);
     VecArrayFloat3 vb = new VecArrayFloat3(b);
-    Smoother3 s3 = new Smoother3(_sigma1,_sigma2,_sigma2,wp);
+    Smoother3 s3 = new Smoother3(_sigma,wp,_d3);
     CgSolver cg = new CgSolver(_small,_niter);
     A3 a3 = new A3(_d3,sp,wp);
     M3 m3 = new M3(_x1,_x2,_x3,s3);
@@ -161,6 +172,11 @@ public class FastImageGuidedInterp {
     return r;
   }
 
+  public float[][] applyForInitial(Sampling s1, Sampling s2) {
+    return new NearestGridder2(_fx,_x1,_x2).grid(s1,s2);
+  }
+  
+  // begin with an initial that satisfies the known points
   private void setInitial(float[][] x) {
     if(_x1==null||_x2==null||_fx==null){return;}
     int np = _x1.length;
@@ -171,6 +187,7 @@ public class FastImageGuidedInterp {
     }
   }
 
+  // begin with an initial that satisfies the known points
   private void setInitial(float[][][] x) {
     if(_x1==null||_x2==null||_x3==null||_fx==null){return;}
     int np = _x1.length;
@@ -184,21 +201,22 @@ public class FastImageGuidedInterp {
 
   ///////////////////////////////////////////////////////////////////////////
   // private
-  private Tensors2 _d2;
-  private Tensors3 _d3;
+  private EigenTensors2 _d2=null;
+  private EigenTensors3 _d3=null;
 
   private static float[] _x1 = null; // 1st coordinates of the known points
   private static float[] _x2 = null; // 2nd coordinates of the known points
   private static float[] _x3 = null; // 3rd coordinates of the known points
   private static float[] _fx = null; // known values at the known points
-  private float _sigma1 = 10.0f; // half-width of smoother in 1st dimension
-  private float _sigma2 = 10.0f; // half-width of smoother in 2nd dimension
+  private float _sigma = 10.0f; // half-width of smoother
   private float _small = 0.010f; // stop CG iterations if residuals are small
   private int _niter = 800; // maximum number of inner CG iterations
+  private float _alpha = 0f;// balance parameter for biharmonic operator
 
   private static class A2 implements CgSolver.A {
-    A2(Tensors2 et, float[][] wp) 
+    A2(float alpha, EigenTensors2 et, float[][] wp) 
     {
+      _alpha = alpha;
       _et = et;
       _wp = wp;
     }
@@ -212,13 +230,18 @@ public class FastImageGuidedInterp {
       VecArrayFloat2 v2t = new VecArrayFloat2(t);
       v2y.zero();
       v2t.zero();
+      //applyLhs(_et,_wp,z,y);
+      //applyLhs(_et,_wp,y,t);
       applyLhs(_et,_wp,z,y);
-      applyLhs(_et,_wp,y,t);
-      v2y.add(1.f,v2t,100f);
+      if(_alpha>0f) {
+        applyLhs(_et,_wp,y,t);
+        v2y.add(1.f,v2t,_alpha);
+      }
     }
 
+    private float _alpha=0.0f;
     private float[][] _wp=null;
-    private Tensors2 _et = null;
+    private EigenTensors2 _et = null;
   }
 
   // Preconditioner; includes smoothers and constraints.
@@ -243,7 +266,7 @@ public class FastImageGuidedInterp {
   }
 
   private static class A3 implements CgSolver.A {
-    A3(Tensors3 et, float[][][] sp, float[][][] wp) 
+    A3(EigenTensors3 et, float[][][] sp, float[][][] wp) 
     {
       _et = et;
       _sp = sp;
@@ -267,7 +290,7 @@ public class FastImageGuidedInterp {
       }
     }
 
-    private Tensors3 _et = null;
+    private EigenTensors3 _et = null;
     private float[][][] _wp=null;
     private float[][][] _sp=null;
   }
@@ -333,7 +356,7 @@ public class FastImageGuidedInterp {
   }
 
   private static void applyLhs(
-    final Tensors2 d, final float[][] wp, 
+    final EigenTensors2 d, final float[][] wp, 
     final float[][] x, final float[][] y)
   {
     zero(y);
@@ -373,7 +396,7 @@ public class FastImageGuidedInterp {
   }
 
   private static void applyLhs(
-    final Tensors3 d, final float[][][] wp, 
+    final EigenTensors3 d, final float[][][] wp, 
     final float[][][] x, final float[][][] y)
   { 
     final int n3 = y.length;
@@ -414,7 +437,7 @@ public class FastImageGuidedInterp {
 
   // 3D LHS
   private static void applyLhsSlice3(
-    int i3, Tensors3 d, float[][][] wp, float[][][] x, float[][][] y)
+    int i3, EigenTensors3 d, float[][][] wp, float[][][] x, float[][][] y)
   {
     int n2 = y[0].length;
     int n1 = y[0][0].length;
