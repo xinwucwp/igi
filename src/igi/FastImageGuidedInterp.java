@@ -230,8 +230,6 @@ public class FastImageGuidedInterp {
       VecArrayFloat2 v2t = new VecArrayFloat2(t);
       v2y.zero();
       v2t.zero();
-      //applyLhs(_et,_wp,z,y);
-      //applyLhs(_et,_wp,y,t);
       applyLhs(_et,_wp,z,y);
       if(_alpha>0f) {
         applyLhs(_et,_wp,y,t);
@@ -355,6 +353,7 @@ public class FastImageGuidedInterp {
 
   }
 
+  //weighted anisotropic laplacian operator
   private static void applyLhs(
     final EigenTensors2 d, final float[][] wp, 
     final float[][] x, final float[][] y)
