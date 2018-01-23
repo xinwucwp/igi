@@ -2,7 +2,6 @@
 
 # Where is the Mines JTK? (Where is your build.xml?)
 export MINES_JTK_HOME=~/Home/research/jtk
-export LIBS_HOME=~/Home/research/igi
 export IGI_HOME=~/Home/research/igi
 # If Mac OS X, which version of Java should we use?
 export JAVA_VERSION=1.8.0
@@ -11,11 +10,10 @@ export JAVA_VERSION=1.8.0
 # Add other jars to this list as necessary.
 export CLASSPATH=\
 $MINES_JTK_HOME/core/build/libs/edu-mines-jtk-1.0.0.jar:\
-$LIBS_HOME/libs/gluegen-rt.jar:\
-$LIBS_HOME/libs/jogl-all.jar:\
-$LIBS_HOME/libs/jythonlib.jar:\
+$IGI_HOME/libs/gluegen-rt.jar:\
+$IGI_HOME/libs/jogl-all.jar:\
+$IGI_HOME/libs/jythonlib.jar:\
 $IGI_HOME/build/classes:\
-$WHEELER_WLW_HOME/build/classes:\
 .
 
 # Run a server 64-bit VM with assertions enabled and a 1GB max Java heap.
