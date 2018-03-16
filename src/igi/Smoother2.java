@@ -42,12 +42,17 @@ public class Smoother2 {
     } else if(_et==null&&_wp!=null) {
       _lsf.applySmoothS(x,y);
       _lsf.apply(_scale,_wp,y,x); //isotropic & spatially variant smoothing
+      _lsf.applySmoothS(x,y);
+      copy(y,x);
     } else if(_et!=null&&_wp==null) {
       _lsf.applySmoothS(x,y);
       _lsf.apply(_et,_scale,y,x); //anisotropic & spatially variant smoothing
     } else if(_et!=null&&_wp!=null) {
       _lsf.applySmoothS(x,y);
       _lsf.apply(_et,_scale,_wp,y,x); //anisotropic & spatially variant smoothing
+      _lsf.applySmoothS(x,y);
+      copy(y,x);
+
     }
   }
 
