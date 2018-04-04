@@ -1,3 +1,9 @@
+"""
+Demo of 2D interpolation of Teapot dome dataset
+Author: Xinming Wu, University of Texas at Austin
+Version: 2018.03.25
+"""
+
 import sys
 from java.awt import *
 from java.lang import *

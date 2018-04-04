@@ -1,3 +1,9 @@
+"""
+Demo of 2d interpolation
+Author: Xinming Wu, University of Texas at Austin
+Version: 2018.03.01
+"""
+
 import sys
 from java.awt import *
 from java.lang import *
